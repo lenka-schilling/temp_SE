@@ -1,12 +1,47 @@
 from typing import List, Optional, Dict, Any
 from datetime import datetime
-from app.schemas.dac_interfaces import (
-    IMeasurement, IForecastRead, IForecastWrite, ICoreDb,
-    Measurement as MeasurementSchema, 
-    ForecastData, BuildingMetadata, DeviceMetadata, UserSchema
-)
+from pydantic import BaseModel
+from beanie import PydanticObjectId
+
 from app.models.measurements import Measurement as MeasurementModel
 from app.models.forecasts import Forecast as ForecastModel
+
+
+class MeasurementSchema(BaseModel):
+    id: str
+    device_id: str
+    metric: str
+    value: float
+    timestamp: datetime
+    tags: Optional[Dict[str, Any]] = None
+
+class ForecastData(BaseModel):
+    id: str
+    type: str
+    horizon: str
+    issued_at: datetime
+    requested_by: str
+    series_item: List[Dict[str, Any]]
+    valid_for: Dict[str, datetime]
+    model_meta: Dict[str, str]
+    scope: Optional[Dict[str, str]]
+
+class BuildingMetadata(BaseModel):
+    pass
+
+class DeviceMetadata(BaseModel):
+    pass
+
+class UserSchema(BaseModel):
+    pass
+
+class IMeasurement: pass
+class IForecastRead: pass
+class IForecastWrite: pass
+class ICoreDb: pass
+
+
+# --- GŁÓWNA KLASA REPOZYTORIUM ---
 
 class DataAccessGateway(IMeasurement, IForecastRead, IForecastWrite, ICoreDb):
     
@@ -53,8 +88,6 @@ class DataAccessGateway(IMeasurement, IForecastRead, IForecastWrite, ICoreDb):
         room_id: Optional[str] = None, floor_id: Optional[str] = None
     ) -> str:
         
-        # We can implement this because 'Forecasts' collection exists in Mongo
-        #
         scope = {"buildingId": building_id}
         if room_id: scope["roomId"] = room_id
         if floor_id: scope["floorId"] = floor_id
@@ -73,7 +106,7 @@ class DataAccessGateway(IMeasurement, IForecastRead, IForecastWrite, ICoreDb):
         return str(new_forecast.id)
 
     async def update_forecast(self, forecast_id: str, series_data: List[Dict]):
-        f = await ForecastModel.get(forecast_id)
+        f = await ForecastModel.get(PydanticObjectId(forecast_id))
         if f:
             f.series_item = series_data
             await f.save()
@@ -87,8 +120,11 @@ class DataAccessGateway(IMeasurement, IForecastRead, IForecastWrite, ICoreDb):
         return self._map_to_schema(f) if f else None
 
     async def get_forecast_by_id(self, forecast_id: str) -> Optional[ForecastData]:
-        f = await ForecastModel.get(forecast_id)
-        return self._map_to_schema(f) if f else None
+        try:
+            f = await ForecastModel.get(PydanticObjectId(forecast_id))
+            return self._map_to_schema(f) if f else None
+        except:
+            return None
 
     async def get_forecasts_in_range(self, *args, **kwargs):
         return []
@@ -107,24 +143,17 @@ class DataAccessGateway(IMeasurement, IForecastRead, IForecastWrite, ICoreDb):
         )
 
     # =========================================================
-    # 3. CORE DB (Non-Functional Interface / Stubs)
+    # 3. CORE DB (Stubs)
     # =========================================================
-    # The optimization team says CoreDb is PostgreSQL.
-    # Since we are not responsible for creating it and don't have access,
-    # we implement the interface to return None/Empty.
     
     async def get_building(self, building_id: str) -> Optional[BuildingMetadata]:
-        # TODO: Connect to PostgreSQL when DB Team provides credentials.
         return None 
 
     async def get_devices(self, building_id: str, device_type: Optional[str] = None, status: Optional[str] = "active") -> List[DeviceMetadata]:
-        # TODO: Connect to PostgreSQL when DB Team provides credentials.
         return []
 
     async def get_device(self, device_id: str) -> Optional[DeviceMetadata]:
-        # TODO: Connect to PostgreSQL when DB Team provides credentials.
         return None
         
     async def get_user_by_username(self, username: str) -> Optional[UserSchema]:
-         # TODO: Connect to PostgreSQL when DB Team provides credentials.
         return None
